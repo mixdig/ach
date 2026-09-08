@@ -1,1 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NACH Signer & Lifetime Secure Access</title>
+    <!-- Reenie Beanie Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Reenie+Beanie&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background-color: #1a1412;
+            background-image: radial-gradient(circle, #2a201b 10%, #0d0908 90%);
+            margin: 0;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .upload-card {
+            background: #2a221f;
+            border: 2px dashed #685348;
+            padding: 20px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        /* Custom Modern File Choose Button */
+        .custom-file-label {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: inline-block;
+            font-size: 13px;
+            font-weight: bold;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+        .custom-file-label:hover {
+            background: #0056b3;
+        }
+
+        .workspace {
+            background: #ffffff;
+            padding: 0;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+            transform: rotate(-0.4deg) skewX(-0.2deg);
+            max-width: 750px;
+            width: 100%;
+            position: relative;
+            display: none;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+        }
+
+        .control-panel {
+            background: #f4f1ea;
+            border-bottom: 1px solid #dcd6cd;
+            padding: 10px;
+            color: #000;
+            transform: rotate(0.4deg) skewX(0.2deg);
+            margin-bottom: 10px;
+        }
+
+        .control-panel h3 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+        }
+
+        .ctrl-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+
+        .ctrl-group {
+            flex: 1;
+            min-width: 130px;
+        }
+
+        .ctrl-group label {
+            display: block;
+            font-size: 10px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .ctrl-group input, .ctrl-group select {
+            width: 100%;
+            padding: 5px;
+            font-size: 11px;
+        }
+
+        #canvas-wrap {
+            position: relative;
+            background: #fff;
+            width: 100%;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .sig-box {
+            position: absolute;
+            font-family: 'Reenie Beanie', cursive;
+            font-size: 26px;
+            color: #0c2340;
+            background: transparent;
+            cursor: move;
+            user-select: none;
+            padding: 2px 6px;
+            border: 1px dashed rgba(0,123,255,0.5);
+            white-space: nowrap;
+            filter: drop-shadow(0.3px 0.3px 0.4px rgba(12,35,64,0.4));
+        }
+
+        #sig1 { transform: rotate(-1.2deg); }
+        #sig2 { transform: rotate(0.5deg); }
+        #sig3 { transform: rotate(-0.7deg); }
+
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .action-btn {
+            flex: 1;
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        .memory-btn {
+            background: #007bff;
+        }
+
+        .action-btn:active {
+            opacity: 0.8;
+        }
+
+        .hint {
+            font-size: 10px;
+            color: #555;
+            text-align: center;
+            margin-top: 6px;
+            font-style: italic;
+        }
+
+        /* Vault Modal */
+        #vaultModal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
+        .vault-content {
+            background: #fff;
+            color: #000;
+            padding: 20px;
+            border-radius: 6px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .vault-item {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Secure Payment Lock Screen Modal -->
+    <div id="lockScreen" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[1000] hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-800 text-slate-800">
+            <div class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-5 flex justify-between items-center shadow-md">
+                <div>
+                    <h2 class="text-lg font-bold tracking-wide flex items-center gap-2">
+                        <span>🔒</span> Secure Payment / Lifetime Unlock
+                    </h2>
+                    <p class="text-xs text-blue-200 mt-0.5">Unlocked after every 2 downloads or lifetime via TRN</p>
+                </div>
+                <div class="bg-blue-900/80 border border-blue-400/40 px-3 py-1.5 rounded-lg text-center shadow-inner">
+                    <span class="block text-[10px] uppercase tracking-wider text-blue-300 font-medium">Time Left</span>
+                    <span id="timerDisplay" class="text-lg font-mono font-bold tracking-wider text-amber-300">03:00</span>
+                </div>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center shadow-sm">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Scan & Pay via UPI</p>
+                    <div class="text-xs font-bold text-slate-800 bg-white inline-block px-3 py-1 rounded-full border border-slate-200 shadow-xs mb-2 select-all">
+                        📱 mobileandmoreshop@axl
+                    </div>
+                    <div id="modalQrcode" class="flex justify-center bg-white p-2 rounded-lg border border-slate-200 shadow-xs w-32 h-32 mx-auto mb-2"></div>
+                    <a href="upi://pay?pa=mobileandmoreshop@axl&pn=MobileAndMoreShop&cu=INR" 
+                       class="text-[11px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold px-3 py-1.5 rounded-lg border border-indigo-200 transition inline-block">
+                        ⚡ Click to Pay via UPI App
+                    </a>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Enter TRN Number</label>
+                        <input type="text" id="trnInput" placeholder="e.g. T342516789" 
+                               class="w-full uppercase font-mono tracking-wider bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <p id="trnError" class="text-[10px] text-rose-600 font-medium mt-0.5 hidden">⚠️ TRN must start with capital letter 'T'.</p>
+                    </div>
+
+                    <div class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-amber-900 flex items-start gap-2">
+                        <span>💡</span>
+                        <div>
+                            <span class="font-bold">PIN Required:</span> Enter the <span class="underline font-bold">last 3 digits</span> of TRN.
+                            <div class="mt-0.5 font-mono font-bold text-indigo-700 bg-amber-100/70 px-1.5 py-0.5 rounded inline-block" id="dynamicPinHint">
+                                Required PIN: [ Enter TRN first ]
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Enter 3-Digit PIN</label>
+                        <input type="password" id="pinInput" maxlength="3" placeholder="---" 
+                               class="w-full text-center font-mono text-base tracking-widest bg-slate-50 border border-slate-300 rounded-lg py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <p id="pinError" class="text-[10px] text-rose-600 font-medium mt-0.5 hidden">⚠️ Incorrect PIN. Match last 3 digits of TRN.</p>
+                    </div>
+
+                    <button onclick="verifyPayment(false)" 
+                            class="w-full bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 text-white font-bold py-2.5 rounded-xl shadow-md text-xs tracking-wide">
+                        🚀 Verify & Unlock
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expiry Fallback Screen -->
+    <div id="expiredScreen" class="fixed inset-0 bg-white z-[1500] hidden flex flex-col items-center justify-center p-6 text-center text-slate-900">
+        <div class="space-y-3 max-w-md">
+            <h1 class="text-2xl font-bold">Session Expired</h1>
+            <p class="text-slate-600 text-sm">The 3-minute verification window has expired.</p>
+            <button onclick="location.reload()" class="bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs px-5 py-2.5 rounded-lg transition">
+                Reload to Restart
+            </button>
+        </div>
+    </div>
+
+    <!-- Home Page Upload Card with Custom Button & Small QR Code -->
+    <div class="upload-card" id="uploadCard">
+        <h2>📄 TVS NACH PDF Upload & Lifetime Unlock</h2>
+        <p style="font-size: 12px; color: #bbb; margin-top: 5px;">Apna blank ya filled NACH form PDF select karein:</p>
+        
+        <!-- Styled Custom File Input Button -->
+        <div>
+            <label for="pdfFile" class="custom-file-label">📁 Choose NACH PDF File</label>
+            <input type="file" id="pdfFile" accept="application/pdf" style="display: none;">
+            <div id="fileNameDisplay" style="font-size: 11px; color: #ffcc00; margin-top: 6px;">No file chosen</div>
+        </div>
+        
+        <!-- Home QR section (Will hide permanently once lifetime verified) -->
+        <div id="homeQrContainer">
+            <hr style="border-color: #55443d; margin: 15px 0;">
+            <div style="background: #ffffff; color: #000; padding: 10px; border-radius: 6px; text-align: center; margin-bottom: 12px; max-width: 320px; margin-left: auto; margin-right: auto;">
+                <p style="font-size: 10px; font-weight: bold; margin-bottom: 4px; color: #333;">⚡ LIFETIME UNLOCK (Scan & Pay)</p>
+                <div style="font-size: 11px; font-weight: bold; background: #f4f4f4; display: inline-block; padding: 2px 6px; border-radius: 4px; margin-bottom: 6px;">
+                    mobileandmoreshop@axl
+                </div>
+                <!-- Smaller Home QR Code Container -->
+                <div id="homeQrcode" style="display: flex; justify-content: center; margin-bottom: 6px;"></div>
+                
+                <div style="text-align: left; background: #f9f9f9; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
+                    <p style="font-size: 10px; font-weight: bold; margin-bottom: 4px; color: #444;">Enter TRN for Lifetime Free Access:</p>
+                    <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                        <input type="text" id="homeTrn" placeholder="TRN (e.g. T12345)" style="flex: 2; padding: 5px; font-size: 11px; text-transform: uppercase; border: 1px solid #ccc; border-radius: 3px;">
+                        <input type="password" id="homePin" maxlength="3" placeholder="PIN" style="flex: 1; padding: 5px; font-size: 11px; text-align: center; border: 1px solid #ccc; border-radius: 3px;">
+                    </div>
+                    <button onclick="verifyPayment(true)" style="width: 100%; background: #007bff; color: #fff; border: none; padding: 7px; font-size: 11px; font-weight: bold; border-radius: 3px; cursor: pointer;">
+                        🔓 Activate Lifetime Free Access
+                    </button>
+                    <p id="homeMsg" style="font-size: 10px; margin-top: 4px; font-weight: bold; text-align: center;"></p>
+                </div>
+            </div>
+        </div>
+
+        <button class="action-btn memory-btn" onclick="openVault()" style="max-width: 250px; margin: 0 auto; display: block;">📂 Open ACH Memory Vault</button>
+    </div>
+
+    <!-- Workspace UI -->
+    <div class="workspace" id="workspaceArea">
+        <div class="control-panel">
+            <h3>✍️ Signature Customizer (Reenie Beanie Cursive)</h3>
+            <div class="ctrl-row">
+                <div class="ctrl-group">
+                    <label>Signer Name:</label>
+                    <input type="text" id="signerName" value="SAFIQUL ISLAM" oninput="updateAllSignatures()">
+                </div>
+                <div class="ctrl-group">
+                    <label>Font Size:</label>
+                    <input type="range" id="fontSizeRange" min="20" max="40" value="26" oninput="updateAllSignatures()">
+                </div>
+                <div class="ctrl-group">
+                    <label>Crop Margin:</label>
+                    <input type="range" id="cropMargin" min="0" max="80" value="25">
+                </div>
+            </div>
+        </div>
+
+        <div id="canvas-wrap">
+            <canvas id="pdfCanvas"></canvas>
+            
+            <div id="sig1" class="sig-box" style="top: 51%; left: 42%;">SAFIQUL ISLAM</div>
+            <div id="sig2" class="sig-box" style="top: 84%; left: 42%;">SAFIQUL ISLAM</div>
+            <div id="sig3" class="sig-box" style="top: 96%; left: 42%;">SAFIQUL ISLAM</div>
+        </div>
+
+        <div style="padding: 12px;">
+            <div class="hint">👆 Drag karke teeno signatures set karein.</div>
+            <div class="btn-container">
+                <button class="action-btn" onclick="saveToMemory()">💾 Save to ACH Memory</button>
+                <button class="action-btn memory-btn" onclick="handleDownload()">📥 Download Camera Photo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Memory Vault Modal -->
+    <div id="vaultModal">
+        <div class="vault-content">
+            <h3>🗄️ ACH Form Memory Vault</h3>
+            <div id="vaultList"></div>
+            <br>
+            <button class="action-btn" onclick="closeVault()" style="background: #dc3545;">Close Vault</button>
+        </div>
+    </div>
+
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    let pdfDoc = null;
+    let canvas = document.getElementById('pdfCanvas');
+    let ctx = canvas.getContext('2d');
+    const upiString = "upi://pay?pa=mobileandmoreshop@axl&pn=MobileAndMoreShop&cu=INR";
+
+    // Check if Lifetime Free is already unlocked
+    let isLifetimeUnlocked = localStorage.getItem('ach_lifetime_free') === 'true';
+    if (isLifetimeUnlocked) {
+        document.getElementById('homeQrContainer').style.display = 'none';
+    }
+
+    // Generate Dynamic QR Codes (Home QR made smaller: 80x80)
+    new QRCode(document.getElementById("homeQrcode"), {
+        text: upiString, width: 80, height: 80,
+        colorDark: "#0f172a", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+    });
+    new QRCode(document.getElementById("modalQrcode"), {
+        text: upiString, width: 120, height: 120,
+        colorDark: "#0f172a", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+    });
+
+    // File input change handler to show file name
+    document.getElementById('pdfFile').addEventListener('change', function(e) {
+        let file = e.target.files[0];
+        if (file) {
+            document.getElementById('fileNameDisplay').textContent = "Selected: " + file.name;
+            if (file.type === 'application/pdf') {
+                let reader = new FileReader();
+                reader.onload = function() {
+                    let typedArray = new Uint8Array(this.result);
+                    pdfjsLib.getDocument(typedArray).promise.then(function(pdf) {
+                        pdfDoc = pdf;
+                        renderPage(1);
+                        document.getElementById('uploadCard').style.display = 'none';
+                        document.getElementById('workspaceArea').style.display = 'block';
+                    });
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                alert("Please select a valid PDF file.");
+            }
+        }
+    });
+
+    function renderPage(num) {
+        pdfDoc.getPage(num).then(function(page) {
+            let viewport = page.getViewport({ scale: 2.5 });
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            page.render({ canvasContext: ctx, viewport: viewport });
+        });
+    }
+
+    function updateAllSignatures() {
+        let val = document.getElementById('signerName').value;
+        let fontSize = document.getElementById('fontSizeRange').value + 'px';
+        document.querySelectorAll('.sig-box').forEach((box) => {
+            box.innerText = val;
+            box.style.fontSize = fontSize;
+        });
+    }
+
+    // Drag support
+    let activeItem = null, startX, startY, initialLeft, initialTop;
+    document.querySelectorAll('.sig-box').forEach(box => {
+        box.addEventListener('pointerdown', function(e) {
+            activeItem = box;
+            startX = e.clientX; startY = e.clientY;
+            let rect = box.getBoundingClientRect();
+            let wrapRect = document.getElementById('canvas-wrap').getBoundingClientRect();
+            initialLeft = rect.left - wrapRect.left;
+            initialTop = rect.top - wrapRect.top;
+            box.setPointerCapture(e.pointerId);
+            e.preventDefault();
+        });
+        box.addEventListener('pointermove', function(e) {
+            if (!activeItem) return;
+            let wrap = document.getElementById('canvas-wrap');
+            box.style.left = ((initialLeft + (e.clientX - startX)) / wrap.clientWidth) * 100 + '%';
+            box.style.top = ((initialTop + (e.clientY - startY)) / wrap.clientHeight) * 100 + '%';
+        });
+        box.addEventListener('pointerup', function(e) {
+            activeItem = null;
+            box.releasePointerCapture(e.pointerId);
+        });
+    });
+
+    let downloadCount = parseInt(localStorage.getItem('ach_dl_count') || '0');
+    let countdownInterval = null;
+
+    function handleDownload() {
+        if (!isLifetimeUnlocked && downloadCount >= 2) {
+            triggerPaymentLock();
+            return;
+        }
+        executeDownload();
+    }
+
+    function triggerPaymentLock() {
+        document.getElementById('lockScreen').style.display = 'flex';
+        startTimer();
+    }
+
+    function startTimer() {
+        let timeLeft = 180;
+        const timerDisplay = document.getElementById("timerDisplay");
+        if (countdownInterval) clearInterval(countdownInterval);
+
+        countdownInterval = setInterval(() => {
+            if (timeLeft <= 0) {
+                clearInterval(countdownInterval);
+                document.getElementById('lockScreen').style.display = 'none';
+                document.getElementById('expiredScreen').style.display = 'flex';
+                return;
+            }
+            let m = Math.floor(timeLeft / 60);
+            let s = timeLeft % 60;
+            timerDisplay.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+            timeLeft--;
+        }, 1000);
+    }
+
+    const trnInput = document.getElementById("trnInput");
+    const pinInput = document.getElementById("pinInput");
+    const dynamicPinHint = document.getElementById("dynamicPinHint");
+    const trnError = document.getElementById("trnError");
+    const pinError = document.getElementById("pinError");
+
+    trnInput.addEventListener("input", function() {
+        let val = this.value.trim();
+        trnError.classList.add("hidden");
+        if (val.length >= 3) {
+            dynamicPinHint.textContent = `Required PIN: ${val.slice(-3)}`;
+        } else {
+            dynamicPinHint.textContent = `Required PIN: [ Enter TRN first ]`;
+        }
+    });
+
+    function verifyPayment(isHome) {
+        let trn = isHome ? document.getElementById("homeTrn").value.trim() : trnInput.value.trim();
+        let pin = isHome ? document.getElementById("homePin").value.trim() : pinInput.value.trim();
+        let msgEl = document.getElementById("homeMsg");
+        let isValid = true;
+
+        if (!trn.startsWith("T") && !trn.startsWith("t")) {
+            if(isHome) { msgEl.style.color = "#ff4d4d"; msgEl.innerText = "⚠️ TRN must start with 'T'"; }
+            else { trnError.classList.remove("hidden"); }
+            isValid = false;
+        } else {
+            if(!isHome) trnError.classList.add("hidden");
+        }
+
+        let expectedPin = trn.slice(-3);
+        if (pin !== expectedPin || pin.length !== 3) {
+            if(isHome) { msgEl.style.color = "#ff4d4d"; msgEl.innerText = "⚠️ Incorrect PIN (Last 3 digits)"; }
+            else { pinError.classList.remove("hidden"); }
+            isValid = false;
+        } else {
+            if(!isHome) pinError.classList.add("hidden");
+        }
+
+        if (isValid) {
+            localStorage.setItem('ach_lifetime_free', 'true');
+            isLifetimeUnlocked = true;
+            localStorage.setItem('ach_dl_count', '0');
+
+            // Permanently hide home QR code box once verified successfully
+            document.getElementById('homeQrContainer').style.display = 'none';
+
+            if(isHome) {
+                msgEl.style.color = "#28a745";
+                msgEl.innerText = "🎉 Lifetime Unlocked! QR removed.";
+            } else {
+                clearInterval(countdownInterval);
+                document.getElementById('lockScreen').style.display = 'none';
+                executeDownload();
+            }
+        }
+    }
+
+    function executeDownload() {
+        document.querySelectorAll('.sig-box').forEach(b => b.style.border = 'none');
+
+        let pdfCanvas = document.getElementById('pdfCanvas');
+        let wrap = document.getElementById('canvas-wrap');
+        let wrapRect = wrap.getBoundingClientRect();
+        let cropValue = parseInt(document.getElementById('cropMargin').value);
+
+        let cropX = (cropValue / 100) * (pdfCanvas.width * 0.08);
+        let cropY = (cropValue / 100) * (pdfCanvas.height * 0.05);
+        let targetWidth = pdfCanvas.width - (cropX * 2);
+        let targetHeight = pdfCanvas.height - (cropY * 2);
+
+        let finalCanvas = document.createElement('canvas');
+        finalCanvas.width = targetWidth;
+        finalCanvas.height = targetHeight;
+        let fCtx = finalCanvas.getContext('2d');
+
+        fCtx.save();
+        fCtx.translate(targetWidth / 2, targetHeight / 2);
+        fCtx.rotate(-0.007);
+        fCtx.translate(-targetWidth / 2, -targetHeight / 2);
+
+        fCtx.drawImage(pdfCanvas, cropX, cropY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight);
+
+        let sigBoxes = document.querySelectorAll('.sig-box');
+        sigBoxes.forEach(box => {
+            let boxRect = box.getBoundingClientRect();
+            let relX = ((boxRect.left - wrapRect.left) / wrapRect.width * pdfCanvas.width) - cropX;
+            let relY = (((boxRect.top - wrapRect.top + 12) / wrapRect.height * pdfCanvas.height) - cropY);
+
+            let fontSizeVal = parseInt(window.getComputedStyle(box).fontSize);
+            let scaledFontSize = fontSizeVal * (pdfCanvas.width / wrapRect.width);
+
+            fCtx.save();
+            fCtx.font = `400 ${scaledFontSize}px 'Reenie Beanie', cursive`;
+            fCtx.fillStyle = '#0c2340';
+            fCtx.translate(relX, relY);
+            
+            if(box.id === 'sig1') fCtx.rotate(-0.02);
+            else if(box.id === 'sig2') fCtx.rotate(0.008);
+            else fCtx.rotate(-0.012);
+
+            fCtx.fillText(box.innerText, 0, 0);
+            fCtx.restore();
+        });
+
+        fCtx.restore();
+
+        let grad = fCtx.createRadialGradient(targetWidth/2, targetHeight/2, targetWidth*0.2, targetWidth/2, targetHeight/2, targetWidth*0.8);
+        grad.addColorStop(0, 'rgba(255,255,255,0)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.03)');
+        fCtx.fillStyle = grad;
+        fCtx.fillRect(0, 0, targetWidth, targetHeight);
+
+        document.querySelectorAll('.sig-box').forEach(b => b.style.border = '1px dashed rgba(0,123,255,0.5)');
+
+        let link = document.createElement('a');
+        link.download = 'NACH_Signed_Form.png';
+        link.href = finalCanvas.toDataURL('image/png', 1.0);
+        link.click();
+
+        if (!isLifetimeUnlocked) {
+            downloadCount++;
+            localStorage.setItem('ach_dl_count', downloadCount.toString());
+        }
+    }
+
+    // Memory Vault Functions
+    function saveToMemory() {
+        let name = document.getElementById('signerName').value;
+        let record = {
+            id: Date.now(), name: name, date: new Date().toLocaleString(),
+            s1: document.getElementById('sig1').style.cssText,
+            s2: document.getElementById('sig2').style.cssText,
+            s3: document.getElementById('sig3').style.cssText
+        };
+        let vault = JSON.parse(localStorage.getItem('ach_memory_vault') || '[]');
+        vault.unshift(record);
+        if(vault.length > 100) vault.pop();
+        localStorage.setItem('ach_memory_vault', JSON.stringify(vault));
+        alert('✅ Saved to ACH Memory Vault!');
+    }
+
+    function openVault() {
+        let vault = JSON.parse(localStorage.getItem('ach_memory_vault') || '[]');
+        let listHtml = vault.length === 0 ? '<p>No saved forms found.</p>' : '';
+        vault.forEach((item, index) => {
+            listHtml += `<div class="vault-item"><span><b>#${index+1}</b> - ${item.name} (${item.date})</span><button onclick="loadFromVault(${item.id})">Load</button></div>`;
+        });
+        document.getElementById('vaultList').innerHTML = listHtml;
+        document.getElementById('vaultModal').style.display = 'flex';
+    }
+
+    function closeVault() { document.getElementById('vaultModal').style.display = 'none'; }
+
+    function loadFromVault(id) {
+        let vault = JSON.parse(localStorage.getItem('ach_memory_vault') || '[]');
+        let found = vault.find(i => i.id === id);
+        if(found) {
+            document.getElementById('signerName').value = found.name;
+            document.getElementById('sig1').style.cssText = found.s1;
+            document.getElementById('sig2').style.cssText = found.s2;
+            document.getElementById('sig3').style.cssText = found.s3;
+            updateAllSignatures();
+            closeVault();
+            alert('🔄 Loaded successfully!');
+        }
+    }
+</script>
+
+</body>
+</html>
 
